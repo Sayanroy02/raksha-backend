@@ -1,0 +1,19 @@
+$kind: http-request
+name: http://127.0.0.1:8000/api/v1/auth/register
+description: ""
+url: http://127.0.0.1:8000/api/v1/auth/register
+method: POST
+body:
+  type: json
+  content: "{\r
+
+    \  \"name\": \"Test User\",\r
+
+    \  \"email\": \"test@example.com\",\r
+
+    \  \"phone\": \"9876543210\",\r
+
+    \  \"password\": \"SecurePass123\"\r
+
+    }\r\n"
+order: 1789402322714
