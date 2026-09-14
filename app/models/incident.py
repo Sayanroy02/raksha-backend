@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from app.models.common import PyObjectId
 
@@ -12,24 +12,58 @@ class GeoPoint(BaseModel):
 
 
 class SOSTriggerRequest(BaseModel):
-    location: GeoPoint
+    location: Optional[GeoPoint] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
     trigger_type: Literal["manual", "auto_ai"] = "manual"
+
+    def get_geo_point(self) -> GeoPoint:
+        if self.location is not None:
+            return self.location
+        lt = self.lat if self.lat is not None else self.latitude
+        ln = self.lng if self.lng is not None else self.longitude
+        if lt is not None and ln is not None:
+            return GeoPoint(lat=lt, lng=ln)
+        return GeoPoint(lat=0.0, lng=0.0)
 
 
 class IncidentOut(BaseModel):
     id: PyObjectId = Field(alias="_id")
+    incident_id: Optional[str] = None
     user_id: PyObjectId
     triggered_at: datetime
     status: Literal["ACTIVE", "RESOLVED", "CANCELLED"]
     trigger_type: str
     location: GeoPoint
+    latest_audio_url: Optional[str] = None
 
     model_config = {"populate_by_name": True}
 
+    @model_validator(mode="after")
+    def set_incident_id(self):
+        if not self.incident_id and self.id:
+            self.incident_id = str(self.id)
+        return self
+
 
 class LocationUpdate(BaseModel):
-    coordinates: GeoPoint
+    coordinates: Optional[GeoPoint] = None
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
+    lat: Optional[float] = None
+    lng: Optional[float] = None
     accuracy: float | None = None
+
+    def get_geo_point(self) -> GeoPoint:
+        if self.coordinates is not None:
+            return self.coordinates
+        lt = self.latitude if self.latitude is not None else self.lat
+        ln = self.longitude if self.longitude is not None else self.lng
+        if lt is not None and ln is not None:
+            return GeoPoint(lat=lt, lng=ln)
+        return GeoPoint(lat=0.0, lng=0.0)
 
 
 class LocationLogOut(BaseModel):
