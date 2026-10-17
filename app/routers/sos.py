@@ -57,7 +57,16 @@ async def _create_sos_incident(
     contacts = [c async for c in contacts_cursor]
 
     live_map_url = f"/live/{incident_id}"
-    await dispatch_sos_alert(contacts, str(incident_id), live_map_url)
+    try:
+        await dispatch_sos_alert(
+            contacts=contacts,
+            incident_id=str(incident_id),
+            live_map_url=live_map_url,
+            user=user,
+            location=location.model_dump(),
+        )
+    except Exception as e:
+        pass  # Never let notification transport failure fail SOS incident creation
 
     return await incidents_collection().find_one({"_id": incident_id})
 
@@ -157,6 +166,18 @@ async def track_target_user(target_id: str):
                 incident = await incidents_collection().find_one(
                     {"user_id": target_user["_id"], "status": "ACTIVE"}
                 )
+    else:
+        # Search by email or phone
+        target_user = await users_collection().find_one({
+            "$or": [
+                {"email": target_id.strip()},
+                {"phone": target_id.strip()},
+            ]
+        })
+        if target_user:
+            incident = await incidents_collection().find_one(
+                {"user_id": target_user["_id"], "status": "ACTIVE"}
+            )
 
     if not target_user and not incident:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User or incident not found")
@@ -186,3 +207,47 @@ async def track_target_user(target_id: str):
         "latest_audio_url": incident.get("latest_audio_url") if incident else None,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+class SendEmailAlertRequest(BaseModel):
+    email: str | None = None
+
+
+@router.post("/{incident_id}/send-email")
+async def send_sos_email_endpoint(
+    incident_id: str,
+    payload: SendEmailAlertRequest | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Manually triggers sending live location emergency email via Resend
+    to an added email and/or all contacts in the safety circle.
+    """
+    incident = await incidents_collection().find_one(
+        {"_id": ObjectId(incident_id), "user_id": current_user["_id"]}
+    )
+    if not incident:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    contacts_cursor = contacts_collection().find({"user_id": current_user["_id"]})
+    contacts = [c async for c in contacts_cursor]
+
+    # If a specific email is provided, add as a temporary contact recipient
+    if payload and payload.email:
+        contacts.append({"name": "Emergency Recipient", "email": payload.email, "phone": ""})
+
+    latest_log = await location_logs_collection().find_one(
+        {"incident_id": incident["_id"]},
+        sort=[("timestamp", -1)]
+    )
+    loc = latest_log.get("coordinates") if latest_log else incident.get("location")
+
+    sent = await dispatch_sos_alert(
+        contacts=contacts,
+        incident_id=str(incident["_id"]),
+        live_map_url=f"/live/{incident['_id']}",
+        user=current_user,
+        location=loc,
+    )
+
+    return {"status": "ok", "emails_sent": sent}

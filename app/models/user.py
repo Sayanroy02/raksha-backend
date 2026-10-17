@@ -23,6 +23,10 @@ class UserOut(BaseModel):
     name: str
     email: EmailStr
     phone: str
+    blood_group: Optional[str] = None
+    medical_notes: Optional[str] = None
+    emergency_notes: Optional[str] = None
+    home_address: Optional[str] = None
     role: Literal["user", "admin"] = "user"
     created_at: datetime
 
@@ -34,6 +38,10 @@ class UserInDB(BaseModel):
     email: EmailStr
     phone: str
     password_hash: str
+    blood_group: Optional[str] = None
+    medical_notes: Optional[str] = None
+    emergency_notes: Optional[str] = None
+    home_address: Optional[str] = None
     role: Literal["user", "admin"] = "user"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -41,6 +49,11 @@ class UserInDB(BaseModel):
 class UserUpdate(BaseModel):
     name: Optional[str] = None
     phone: Optional[str] = None
+    email: Optional[EmailStr] = None
+    blood_group: Optional[str] = None
+    medical_notes: Optional[str] = None
+    emergency_notes: Optional[str] = None
+    home_address: Optional[str] = None
 
 
 class TokenPair(BaseModel):

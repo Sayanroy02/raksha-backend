@@ -14,7 +14,14 @@ from app.core.security import (
 )
 from app.deps import get_current_user
 from app.core.limiter import limiter
-from app.models.user import RefreshRequest, TokenPair, UserLogin, UserOut, UserRegister
+from app.models.user import (
+    RefreshRequest,
+    TokenPair,
+    UserLogin,
+    UserOut,
+    UserRegister,
+    UserUpdate,
+)
 from app.services.audit_service import log_event
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
@@ -84,3 +91,19 @@ async def refresh_token(payload: RefreshRequest):
 @router.get("/me", response_model=UserOut)
 async def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=UserOut)
+async def update_me(payload: UserUpdate, current_user: dict = Depends(get_current_user)):
+    """Update current user profile / personal safety information."""
+    updates = {k: v for k, v in payload.model_dump().items() if v is not None}
+    if not updates:
+        return current_user
+
+    result = await users_collection().find_one_and_update(
+        {"_id": current_user["_id"]},
+        {"$set": updates},
+        return_document=True,
+    )
+    log_event("auth.update_profile", user_id=current_user["_id"], detail={"fields": list(updates.keys())})
+    return result

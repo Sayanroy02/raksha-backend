@@ -33,8 +33,13 @@ class Settings(BaseSettings):
     cloudinary_api_key: str
     cloudinary_api_secret: str
 
-    # Google Maps
-    google_maps_api_key: str
+    # Google Maps / Geoapify
+    google_maps_api_key: str = ""
+    geoapify_api_key_geolocator: str = ""
+
+    # Resend Email Service
+    resend_api_key: str = ""
+    resend_from_email: str = "Raksha+ Emergency <onboarding@resend.dev>"
 
     # CORS — comma-separated origins in .env, parsed into a list here
     cors_origins: str = "http://localhost"
