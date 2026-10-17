@@ -64,7 +64,13 @@ def _build_sos_email_html(
     static_map_url: str,
     nav_url: str,
     triggered_at_str: str,
+    home_address: str = "",
 ) -> str:
+    home_address_block = (
+        f'<p style="margin: 4px 0; font-size: 14px;"><strong>🏠 Registered Address:</strong> {home_address}</p>'
+        if home_address else ""
+    )
+
     return f"""<!DOCTYPE html>
 <html>
 <head>
@@ -91,7 +97,8 @@ def _build_sos_email_html(
         <p style="margin: 4px 0; font-size: 14px;"><strong>📞 Phone:</strong> <a href="tel:{user_phone}" style="color: #ff5370; text-decoration: none;">{user_phone or 'Not provided'}</a></p>
         <p style="margin: 4px 0; font-size: 14px;"><strong>⏰ Time:</strong> {triggered_at_str}</p>
         <p style="margin: 4px 0; font-size: 14px;"><strong>📍 GPS:</strong> {lat:.5f}, {lng:.5f}</p>
-        <p style="margin: 4px 0; font-size: 14px;"><strong>🏠 Address:</strong> {address_str}</p>
+        {home_address_block}
+        <p style="margin: 4px 0; font-size: 14px;"><strong>🗺️ GPS Landmark / Area:</strong> {address_str}</p>
         <p style="margin: 4px 0; font-size: 12px; color: #a0a5ba;"><strong>Incident ID:</strong> {incident_id}</p>
       </div>
 
@@ -154,6 +161,7 @@ async def dispatch_sos_alert(
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
 
     subject = f"🚨 EMERGENCY SOS ALERT: {user_name} needs help!"
+    user_home_address = user.get("home_address", "") if user else ""
     html_content = _build_sos_email_html(
         user_name=user_name,
         user_phone=user_phone,
@@ -164,6 +172,7 @@ async def dispatch_sos_alert(
         static_map_url=static_map,
         nav_url=nav_url,
         triggered_at_str=now_str,
+        home_address=user_home_address,
     )
 
     emails_to_notify: set[str] = set()
