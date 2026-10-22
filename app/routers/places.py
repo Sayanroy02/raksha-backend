@@ -40,3 +40,25 @@ async def get_client_ip_location(
     """Get location estimated from client IP when GPS is unavailable."""
     client_ip = request.client.host if request.client else None
     return await get_ip_location(client_ip)
+
+
+@router.get("/danger-zones")
+async def get_user_danger_zones(current_user: dict = Depends(get_current_user)):
+    """Fetch active danger zones marked by admin for real-time safety alerts."""
+    from app.core.database import danger_zones_collection
+    cursor = danger_zones_collection().find({"is_active": True})
+    zones = []
+    async for z in cursor:
+        zones.append({
+            "id": str(z["_id"]),
+            "title": z.get("title"),
+            "description": z.get("description", ""),
+            "zone_type": z.get("zone_type", "CIRCLE"),
+            "latitude": z.get("latitude"),
+            "longitude": z.get("longitude"),
+            "radius_m": z.get("radius_m", 300),
+            "path_coordinates": z.get("path_coordinates", []),
+            "severity": z.get("severity", "HIGH"),
+        })
+    return zones
+

@@ -2,11 +2,12 @@ from datetime import datetime, timezone
 from typing import Literal
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel
 
 from app.core.database import (
     contacts_collection,
+    evidence_collection,
     incidents_collection,
     location_logs_collection,
     users_collection,
@@ -142,6 +143,55 @@ async def attach_emergency_audio(
     if not incident:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
     return {"status": "ok", "latest_audio_url": payload.audio_url}
+
+
+@router.post("/{incident_id}/upload-audio")
+async def upload_emergency_audio(
+    incident_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Direct multipart audio upload recorded by Raksha Client on SOS trigger.
+    Saves file to server uploads and stores URL on the incident and evidence collection.
+    """
+    import os
+    import shutil
+    import uuid
+
+    upload_dir = os.path.join(os.getcwd(), "uploads", "audio")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = "m4a"
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1]
+
+    filename = f"sos_{incident_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    dest_path = os.path.join(upload_dir, filename)
+
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    audio_url = f"/uploads/audio/{filename}"
+
+    incident = await incidents_collection().find_one_and_update(
+        {"_id": ObjectId(incident_id), "user_id": current_user["_id"]},
+        {"$set": {"latest_audio_url": audio_url, "audio_updated_at": datetime.now(timezone.utc)}},
+        return_document=True,
+    )
+    if not incident:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    await evidence_collection().insert_one({
+        "incident_id": ObjectId(incident_id),
+        "user_id": current_user["_id"],
+        "type": "AUDIO",
+        "cloudinary_url": audio_url,
+        "filename": filename,
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    return {"status": "ok", "audio_url": audio_url}
 
 
 @router.get("/track/{target_id}")

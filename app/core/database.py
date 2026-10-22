@@ -101,6 +101,22 @@ def audit_logs_collection():
     return get_db()["audit_logs"]
 
 
+def reports_collection():
+    return get_db()["reports_queries"]
+
+
+def danger_zones_collection():
+    return get_db()["danger_zones"]
+
+
+def police_dispatches_collection():
+    return get_db()["police_dispatches"]
+
+
+def admin_config_collection():
+    return get_db()["admin_config"]
+
+
 async def create_indexes() -> None:
     """
     Create all MongoDB indexes specified in the synopsis ER / indexing strategy.
