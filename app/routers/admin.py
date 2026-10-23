@@ -290,6 +290,17 @@ async def get_all_incidents(
         inc_data["evidence"] = evidence_list
         inc_data["evidence_count"] = len(evidence_list)
 
+        if not inc_data.get("latest_audio_url"):
+            for ev in evidence_list:
+                if ev.get("type") == "AUDIO" and ev.get("cloudinary_url"):
+                    inc_data["latest_audio_url"] = ev.get("cloudinary_url")
+                    break
+        if not inc_data.get("latest_video_url"):
+            for ev in evidence_list:
+                if ev.get("type") == "VIDEO" and ev.get("cloudinary_url"):
+                    inc_data["latest_video_url"] = ev.get("cloudinary_url")
+                    break
+
         # Reverse geocoded address preview or coordinates
         loc = inc.get("location", {})
         lat = loc.get("lat", 0.0)

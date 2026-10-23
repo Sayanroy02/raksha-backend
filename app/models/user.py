@@ -27,6 +27,10 @@ class UserOut(BaseModel):
     medical_notes: Optional[str] = None
     emergency_notes: Optional[str] = None
     home_address: Optional[str] = None
+    safe_address: Optional[str] = None
+    guardian_phone: Optional[str] = None
+    post_office: Optional[str] = None
+    police_station: Optional[str] = None
     role: Literal["user", "admin"] = "user"
     created_at: datetime
 
@@ -42,6 +46,10 @@ class UserInDB(BaseModel):
     medical_notes: Optional[str] = None
     emergency_notes: Optional[str] = None
     home_address: Optional[str] = None
+    safe_address: Optional[str] = None
+    guardian_phone: Optional[str] = None
+    post_office: Optional[str] = None
+    police_station: Optional[str] = None
     role: Literal["user", "admin"] = "user"
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -54,6 +62,10 @@ class UserUpdate(BaseModel):
     medical_notes: Optional[str] = None
     emergency_notes: Optional[str] = None
     home_address: Optional[str] = None
+    safe_address: Optional[str] = None
+    guardian_phone: Optional[str] = None
+    post_office: Optional[str] = None
+    police_station: Optional[str] = None
 
 
 class TokenPair(BaseModel):

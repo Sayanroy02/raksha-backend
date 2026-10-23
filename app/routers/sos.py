@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import re
 from typing import Literal
 
 from bson import ObjectId
@@ -194,6 +195,55 @@ async def upload_emergency_audio(
     return {"status": "ok", "audio_url": audio_url}
 
 
+@router.post("/{incident_id}/upload-video")
+async def upload_emergency_video(
+    incident_id: str,
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    Direct multipart video upload recorded automatically on SOS trigger (30s video evidence).
+    Saves file to server uploads and stores URL on the incident and evidence collection.
+    """
+    import os
+    import shutil
+    import uuid
+
+    upload_dir = os.path.join(os.getcwd(), "uploads", "video")
+    os.makedirs(upload_dir, exist_ok=True)
+
+    ext = "mp4"
+    if file.filename and "." in file.filename:
+        ext = file.filename.rsplit(".", 1)[-1]
+
+    filename = f"sos_video_{incident_id}_{uuid.uuid4().hex[:8]}.{ext}"
+    dest_path = os.path.join(upload_dir, filename)
+
+    with open(dest_path, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+
+    video_url = f"/uploads/video/{filename}"
+
+    incident = await incidents_collection().find_one_and_update(
+        {"_id": ObjectId(incident_id), "user_id": current_user["_id"]},
+        {"$set": {"latest_video_url": video_url, "video_updated_at": datetime.now(timezone.utc)}},
+        return_document=True,
+    )
+    if not incident:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Incident not found")
+
+    await evidence_collection().insert_one({
+        "incident_id": ObjectId(incident_id),
+        "user_id": current_user["_id"],
+        "type": "VIDEO",
+        "cloudinary_url": video_url,
+        "filename": filename,
+        "created_at": datetime.now(timezone.utc),
+    })
+
+    return {"status": "ok", "video_url": video_url}
+
+
 @router.get("/track/{target_id}")
 async def track_target_user(target_id: str):
     """
@@ -202,11 +252,15 @@ async def track_target_user(target_id: str):
     target_id can be a user_id or active incident_id.
     Returns live GPS coordinates, alert status, and latest audio URL.
     """
+    clean_target = target_id.strip()
+    if clean_target.startswith("user_"):
+        clean_target = clean_target[5:].strip()
+
     incident = None
     target_user = None
 
-    if ObjectId.is_valid(target_id):
-        obj_id = ObjectId(target_id)
+    if ObjectId.is_valid(clean_target):
+        obj_id = ObjectId(clean_target)
         incident = await incidents_collection().find_one({"_id": obj_id})
         if incident:
             target_user = await users_collection().find_one({"_id": incident["user_id"]})
@@ -217,11 +271,11 @@ async def track_target_user(target_id: str):
                     {"user_id": target_user["_id"], "status": "ACTIVE"}
                 )
     else:
-        # Search by email or phone
+        # Search by email (case-insensitive) or phone
         target_user = await users_collection().find_one({
             "$or": [
-                {"email": target_id.strip()},
-                {"phone": target_id.strip()},
+                {"email": {"$regex": f"^{re.escape(clean_target)}$", "$options": "i"}},
+                {"phone": clean_target},
             ]
         })
         if target_user:
@@ -230,7 +284,7 @@ async def track_target_user(target_id: str):
             )
 
     if not target_user and not incident:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User or incident not found")
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Guardian target not found. Please verify the ID or Email.")
 
     user_name = target_user.get("name", "Raksha+ User") if target_user else "Raksha+ User"
     user_phone = target_user.get("phone", "") if target_user else ""
@@ -245,6 +299,16 @@ async def track_target_user(target_id: str):
             latest_location = latest_log.get("coordinates")
         else:
             latest_location = incident.get("location")
+    elif target_user:
+        # Check if user has any recorded location log or profile location
+        latest_log = await location_logs_collection().find_one(
+            {"user_id": target_user["_id"]},
+            sort=[("timestamp", -1)]
+        )
+        if latest_log:
+            latest_location = latest_log.get("coordinates")
+        elif target_user.get("location"):
+            latest_location = target_user.get("location")
 
     return {
         "target_user_id": str(target_user["_id"]) if target_user else (str(incident["user_id"]) if incident else ""),
