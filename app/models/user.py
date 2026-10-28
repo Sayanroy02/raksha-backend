@@ -19,7 +19,7 @@ class UserLogin(BaseModel):
 
 
 class UserOut(BaseModel):
-    id: PyObjectId = Field(alias="_id")
+    id: PyObjectId = Field(alias="_id") #as in user_id defined in synopsis
     name: str
     email: EmailStr
     phone: str

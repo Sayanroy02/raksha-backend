@@ -41,3 +41,6 @@ Thumbs.db
 
 # MongoDB local data (if run locally)
 data/
+
+.postman/
+

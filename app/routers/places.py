@@ -43,22 +43,24 @@ async def get_client_ip_location(
 
 
 @router.get("/danger-zones")
-async def get_user_danger_zones(current_user: dict = Depends(get_current_user)):
-    """Fetch active danger zones marked by admin for real-time safety alerts."""
+async def get_user_danger_zones():
+    """Fetch active danger zones marked by admin for real-time safety alerts (public safety access)."""
     from app.core.database import danger_zones_collection
-    cursor = danger_zones_collection().find({"is_active": True})
+    cursor = danger_zones_collection().find({"is_active": {"$ne": False}}).sort("created_at", -1)
     zones = []
     async for z in cursor:
         zones.append({
             "id": str(z["_id"]),
-            "title": z.get("title"),
+            "_id": str(z["_id"]),
+            "title": z.get("title", "Unsafe Area"),
             "description": z.get("description", ""),
             "zone_type": z.get("zone_type", "CIRCLE"),
-            "latitude": z.get("latitude"),
-            "longitude": z.get("longitude"),
-            "radius_m": z.get("radius_m", 300),
+            "latitude": float(z.get("latitude", 0.0)),
+            "longitude": float(z.get("longitude", 0.0)),
+            "radius_m": int(z.get("radius_m", 300)),
             "path_coordinates": z.get("path_coordinates", []),
             "severity": z.get("severity", "HIGH"),
+            "is_active": z.get("is_active", True),
         })
     return zones
 
