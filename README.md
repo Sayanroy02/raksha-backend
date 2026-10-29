@@ -315,6 +315,41 @@ Raksha+ uses **Bearer Token Authentication** (`Authorization: Bearer <access_tok
   ```
 - **Response `200 OK`**: Returns a new `TokenPair` valid for another 365 days.
 
+#### `GET /api/v1/auth/me`
+- **Headers**: `Authorization: Bearer <access_token>`
+- **Response `200 OK`**:
+  ```json
+  {
+    "id": "6718a1bf4f3d2a1b9c8e7f6a",
+    "name": "Jane Doe",
+    "email": "jane@example.com",
+    "phone": "+919876543210",
+    "phone_imei": "867459038291045",
+    "blood_group": "B+",
+    "medical_notes": "Asthmatic, carries inhaler",
+    "home_address": "42 Green Valley, Sector 14, Gurugram",
+    "role": "CITIZEN",
+    "is_active": true,
+    "created_at": "2026-10-20T10:15:30Z"
+  }
+  ```
+
+#### `PATCH /api/v1/auth/me`
+- **Headers**: `Authorization: Bearer <access_token>`
+- **Description**: Updates user profile, medical background, emergency notes, home address, and IMEI. Synchronizes seamlessly with the mobile client Personal Info view.
+- **Request Body**:
+  ```json
+  {
+    "name": "Jane Doe",
+    "phone": "+919876543210",
+    "blood_group": "O+",
+    "medical_notes": "Diabetic, allergic to penicillin",
+    "home_address": "Flat 402, Sunshine Towers, MG Road, Gurugram",
+    "phone_imei": "867459038291045"
+  }
+  ```
+- **Response `200 OK`**: Returns the updated `UserOut` model.
+
 ---
 
 ### 3. SOS Emergency Engine (`/api/v1/sos`)
@@ -341,6 +376,11 @@ Raksha+ uses **Bearer Token Authentication** (`Authorization: Bearer <access_tok
     "trigger_type": "manual"
   }
   ```
+- **Supported `trigger_type` Values**:
+  - `"manual"`: User initiated emergency via 2-second hold on the SOS Button.
+  - `"high_noise"`: Auto-triggered by Noise Sentinel upon detecting sustained sound > 50 dB.
+  - `"stealth"`: Activated when user initiates Fake Switch / Stealth Shutdown defense.
+  - `"shake"` / `"fall"`: Triggered by accelerometer jerk or violent impact detection.
 - **Response `201 Created`**:
   ```json
   {
@@ -457,17 +497,52 @@ Raksha+ uses **Bearer Token Authentication** (`Authorization: Bearer <access_tok
 
 | Method | Endpoint Slug | Auth | Description |
 |---|---|---|---|
-| `GET` | `/api/v1/places/nearby` | Bearer | Find nearest Police Stations and Emergency Hospitals |
+| `GET` | `/api/v1/places/nearby` | Bearer | Find nearest Police Stations and Emergency Hospitals via Geoapify |
 | `GET` | `/api/v1/places/reverse-geocode` | Bearer | Convert GPS coordinates into human-readable street address |
 | `GET` | `/api/v1/places/ip-location` | Bearer | Approximate client location from IP when GPS is unavailable |
-| `GET` | `/api/v1/places/danger-zones` | Bearer | **Real-Time Danger Zones**: Active circles & road corridor lines |
+| `GET` | `/api/v1/places/danger-zones` | **Public** | **Real-Time Danger Zones**: Active circles & road corridor lines (no JWT required) |
+
+#### `GET /api/v1/places/nearby`
+- **Query Parameters**:
+  - `lat`: User's current GPS latitude (e.g., `28.4715`)
+  - `lng`: User's current GPS longitude (e.g., `77.0725`)
+  - `type`: `police` or `hospital` (default: `police`)
+  - `radius_m`: Search radius in meters (default: `3000`, min: `100`, max: `50000`)
+- **Response `200 OK`**:
+  ```json
+  [
+    {
+      "name": "DLF Phase 2 Police Station",
+      "address": "Sector 25, MG Road, Gurugram, Haryana 122002",
+      "distance_meters": 450,
+      "latitude": 28.4750,
+      "longitude": 77.0760,
+      "contact": "0124-2345678",
+      "type": "police",
+      "open_now": true
+    },
+    {
+      "name": "Max Super Speciality Hospital",
+      "address": "B-Block, Sushant Lok 1, Gurugram, Haryana 122001",
+      "distance_meters": 1200,
+      "latitude": 28.4680,
+      "longitude": 77.0810,
+      "contact": "0124-6623000",
+      "type": "hospital",
+      "open_now": true
+    }
+  ]
+  ```
 
 #### `GET /api/v1/places/danger-zones`
+- **Authentication**: **Public (No JWT required)**. Ensures mobile clients display critical hazard overlays immediately on first launch, without blocking behind authentication or token refreshes.
+- **Database Query**: Filters MongoDB with `{"is_active": {"$ne": False}}` sorted by `created_at DESC`.
 - **Response `200 OK`**:
   ```json
   [
     {
       "id": "6718b5de9f2e1a3b8c7d6e5f",
+      "_id": "6718b5de9f2e1a3b8c7d6e5f",
       "title": "Unlit Canal Road (Late Night)",
       "description": "Broken streetlights, zero pedestrian traffic after 9 PM.",
       "zone_type": "ROAD_LINE",
@@ -484,6 +559,7 @@ Raksha+ uses **Bearer Token Authentication** (`Authorization: Bearer <access_tok
     },
     {
       "id": "6718c1ab3f4d5e6a7b8c9d0e",
+      "_id": "6718c1ab3f4d5e6a7b8c9d0e",
       "title": "Dark Underpass - Low Visibility",
       "description": "Cautionary area.",
       "zone_type": "CIRCLE",
